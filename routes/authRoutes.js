@@ -4,6 +4,7 @@ const authController = require('../controllers/authController');
 
 // Standard login
 router.post('/login', authController.login);
+router.post('/phone-login', authController.phoneLogin);
 
 // Customer Registration
 router.post('/register-customer', authController.registerCustomer);

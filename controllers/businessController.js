@@ -2,14 +2,43 @@ const pool = require('../db');
 
 exports.updateSettings = async (req, res) => {
     const { id } = req.params;
-    const { grace_time_minutes, online_allocation_percentage, operating_hours } = req.body;
+    const { name, address, cuisine, grace_time_minutes, online_allocation_percentage, operating_hours, gallery_images, menu_images, phone, description, cover_image_url, dining_offers, amenities, average_cost } = req.body;
 
     try {
         const result = await pool.query(
             `UPDATE businesses 
-             SET grace_time_minutes = $1, online_allocation_percentage = $2, operating_hours = $3
-             WHERE id = $4 RETURNING *`,
-            [grace_time_minutes, online_allocation_percentage, operating_hours, id]
+             SET grace_time_minutes = COALESCE($1, grace_time_minutes), 
+                 online_allocation_percentage = COALESCE($2, online_allocation_percentage), 
+                 operating_hours = COALESCE($3, operating_hours), 
+                 gallery_images = COALESCE($4, gallery_images), 
+                 menu_images = COALESCE($5, menu_images),
+                 phone = COALESCE($6, phone),
+                 description = COALESCE($7, description),
+                 cover_image_url = COALESCE($8, cover_image_url),
+                 dining_offers = COALESCE($9::jsonb, dining_offers),
+                 amenities = COALESCE($10::jsonb, amenities),
+                 average_cost = COALESCE($11, average_cost),
+                 name = COALESCE($13, name),
+                 address = COALESCE($14, address),
+                 cuisine = COALESCE($15, cuisine)
+             WHERE id = $12 RETURNING *`,
+            [
+                grace_time_minutes, 
+                online_allocation_percentage, 
+                operating_hours ? JSON.stringify(operating_hours) : null, 
+                gallery_images, 
+                menu_images, 
+                phone, 
+                description, 
+                cover_image_url, 
+                dining_offers ? JSON.stringify(dining_offers) : null, 
+                amenities ? JSON.stringify(amenities) : null,
+                average_cost,
+                id,
+                name,
+                address,
+                cuisine
+            ]
         );
 
         if (result.rows.length === 0) {
@@ -25,7 +54,7 @@ exports.updateSettings = async (req, res) => {
 exports.getSettings = async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query('SELECT name, grace_time_minutes, online_allocation_percentage, phone, description, cover_image_url, operating_hours FROM businesses WHERE id = $1', [id]);
+        const result = await pool.query('SELECT name, address, cuisine, grace_time_minutes, online_allocation_percentage, phone, description, cover_image_url, operating_hours, gallery_images, menu_images, dining_offers, amenities, average_cost FROM businesses WHERE id = $1', [id]);
         res.json({ data: result.rows[0] });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -38,7 +67,8 @@ exports.getPublicProfile = async (req, res) => {
         const result = await pool.query(`
             SELECT b.id, b.name, b.address, b.phone, b.description, b.cover_image_url, 
                    b.cuisine, b.rating, b.reviews_count, b.price_range, b.is_open, 
-                   b.owner_id, bt.name as type_name, b.operating_hours
+                   b.owner_id, bt.name as type_name, b.operating_hours,
+                   b.gallery_images, b.menu_images, b.dining_offers, b.amenities, b.average_cost
             FROM businesses b 
             LEFT JOIN business_types bt ON b.type_id = bt.id 
             WHERE b.id = $1
@@ -54,7 +84,7 @@ exports.getAllBusinesses = async (req, res) => {
         const result = await pool.query(`
             SELECT b.id, b.name, b.address, b.phone, b.subscription_plan, 
                    b.cover_image_url, b.cuisine, b.rating, b.reviews_count, 
-                   b.price_range, b.is_open, b.owner_id, bt.name as type_name 
+                   b.price_range, b.is_open, b.owner_id, bt.name as type_name, b.dining_offers, b.amenities, b.average_cost
             FROM businesses b 
             LEFT JOIN business_types bt ON b.type_id = bt.id
         `);

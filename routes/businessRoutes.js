@@ -5,6 +5,10 @@ const businessController = require('../controllers/businessController');
 // Route to get all business types (master table)
 router.get('/types', businessController.getBusinessTypes);
 
+// Route to get collections and moods
+router.get('/collections', businessController.getCollections);
+router.get('/moods', businessController.getMoods);
+
 // Route to get all businesses for the public portal
 router.get('/', businessController.getAllBusinesses);
 

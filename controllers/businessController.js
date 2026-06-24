@@ -68,7 +68,14 @@ exports.getPublicProfile = async (req, res) => {
             SELECT b.id, b.name, b.address, b.phone, b.description, b.cover_image_url, 
                    b.cuisine, b.rating, b.reviews_count, b.price_range, b.is_open, 
                    b.owner_id, bt.name as type_name, b.operating_hours,
-                   b.gallery_images, b.menu_images, b.dining_offers, b.amenities, b.average_cost
+                   b.gallery_images, b.menu_images, b.dining_offers, b.amenities, b.average_cost,
+                   COALESCE(
+                     (SELECT json_agg(c.slug) 
+                      FROM business_collections bc 
+                      JOIN collections c ON bc.collection_id = c.id 
+                      WHERE bc.business_id = b.id), 
+                     '[]'::json
+                   ) as collection_slugs
             FROM businesses b 
             LEFT JOIN business_types bt ON b.type_id = bt.id 
             WHERE b.id = $1
@@ -80,13 +87,71 @@ exports.getPublicProfile = async (req, res) => {
 }
 
 exports.getAllBusinesses = async (req, res) => {
+    const { collection, mood } = req.query;
     try {
-        const result = await pool.query(`
+        let queryStr = `
             SELECT b.id, b.name, b.address, b.phone, b.subscription_plan, 
                    b.cover_image_url, b.cuisine, b.rating, b.reviews_count, 
                    b.price_range, b.is_open, b.owner_id, bt.name as type_name, b.dining_offers, b.amenities, b.average_cost
             FROM businesses b 
             LEFT JOIN business_types bt ON b.type_id = bt.id
+        `;
+        const conditions = [];
+        const params = [];
+
+        if (collection) {
+            conditions.push(`b.id IN (
+                SELECT bc.business_id 
+                FROM business_collections bc
+                JOIN collections c ON bc.collection_id = c.id
+                WHERE c.slug = $${params.length + 1}
+            )`);
+            params.push(collection);
+        }
+
+        if (mood) {
+            conditions.push(`b.id IN (
+                SELECT bm.business_id 
+                FROM business_moods bm
+                JOIN moods m ON bm.mood_id = m.id
+                WHERE m.query_tag = $${params.length + 1}
+            )`);
+            params.push(mood);
+        }
+
+        if (conditions.length > 0) {
+            queryStr += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        const result = await pool.query(queryStr, params);
+        res.json({ data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+exports.getCollections = async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT c.id, c.title, c.subtitle, c.image_url, c.color_gradient, c.slug,
+                   COALESCE(COUNT(bc.business_id), 0)::integer as places_count
+            FROM collections c
+            LEFT JOIN business_collections bc ON c.id = bc.collection_id
+            GROUP BY c.id, c.title, c.subtitle, c.image_url, c.color_gradient, c.slug
+            ORDER BY c.id ASC
+        `);
+        res.json({ data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+exports.getMoods = async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT id, title, image_url, query_tag
+            FROM moods
+            ORDER BY id ASC
         `);
         res.json({ data: result.rows });
     } catch (error) {

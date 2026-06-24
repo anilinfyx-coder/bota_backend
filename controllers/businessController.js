@@ -103,7 +103,6 @@ exports.getAllBusinesses = async (req, res) => {
                 WHERE status = 'ACTIVE' AND end_date >= CURRENT_DATE
                 GROUP BY business_id
             ) active_camp ON b.id = active_camp.business_id
-            ORDER BY is_promoted DESC, b.rating DESC NULLS LAST
         `;
         const conditions = [];
         const params = [];
@@ -131,6 +130,8 @@ exports.getAllBusinesses = async (req, res) => {
         if (conditions.length > 0) {
             queryStr += ' WHERE ' + conditions.join(' AND ');
         }
+
+        queryStr += ' ORDER BY is_promoted DESC, b.rating DESC NULLS LAST';
 
         const result = await pool.query(queryStr, params);
         res.json({ data: result.rows });

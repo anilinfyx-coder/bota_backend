@@ -26,7 +26,7 @@ const migrationsList = [
         ALTER TABLE reviews
           ALTER COLUMN rating TYPE NUMERIC(3,1);
       `);
-      
+
       // Refresh the check constraint for rating
       await pool.query(`ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_rating_check;`);
       await pool.query(`ALTER TABLE reviews ADD CONSTRAINT reviews_rating_check CHECK (rating >= 1.0 AND rating <= 5.0);`);
@@ -146,7 +146,7 @@ const migrationsList = [
 
       // Fetch all businesses
       const bizRes = await pool.query('SELECT id, name FROM businesses');
-      
+
       for (const biz of bizRes.rows) {
         const name = biz.name;
         let bizCols = [];
@@ -249,6 +249,36 @@ async function runAllMigrations(pool) {
       await pool.query('INSERT INTO migration_history (name) VALUES ($1)', [migration.name]);
       console.log(`Migration completed successfully: ${migration.name}`);
     }
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS marketing_plans (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) UNIQUE NOT NULL,
+        duration_days INT NOT NULL,
+        price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await pool.query(`
+      INSERT INTO marketing_plans (name, duration_days, price, is_active) VALUES 
+      ('Top Search Priority - 1 Month', 30, 49.99, true),
+      ('Top Search Priority - 3 Months', 90, 129.99, true)
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS business_marketing_campaigns (
+        id SERIAL PRIMARY KEY,
+        business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
+        plan_id INT REFERENCES marketing_plans(id) ON DELETE RESTRICT,
+        start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        end_date TIMESTAMP NOT NULL,
+        status VARCHAR(50) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'EXPIRED', 'CANCELLED')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Migration OK: Created marketing_plans and business_marketing_campaigns tables');
 
     console.log('All database migration checks/runs completed successfully.');
   } catch (error) {

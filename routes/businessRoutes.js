@@ -36,4 +36,7 @@ router.delete('/:id/tables/:tableId', businessController.deleteTable);
 // Route to get business analytics
 router.get('/:id/analytics', businessController.getAnalytics);
 
+// Route to get active campaigns for a business
+router.get('/:id/campaigns', businessController.getCampaigns);
+
 module.exports = router;

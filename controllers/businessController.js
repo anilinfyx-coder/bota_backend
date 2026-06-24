@@ -23,15 +23,15 @@ exports.updateSettings = async (req, res) => {
                  cuisine = COALESCE($15, cuisine)
              WHERE id = $12 RETURNING *`,
             [
-                grace_time_minutes, 
-                online_allocation_percentage, 
-                operating_hours ? JSON.stringify(operating_hours) : null, 
-                gallery_images, 
-                menu_images, 
-                phone, 
-                description, 
-                cover_image_url, 
-                dining_offers ? JSON.stringify(dining_offers) : null, 
+                grace_time_minutes,
+                online_allocation_percentage,
+                operating_hours ? JSON.stringify(operating_hours) : null,
+                gallery_images,
+                menu_images,
+                phone,
+                description,
+                cover_image_url,
+                dining_offers ? JSON.stringify(dining_offers) : null,
                 amenities ? JSON.stringify(amenities) : null,
                 average_cost,
                 id,
@@ -92,9 +92,18 @@ exports.getAllBusinesses = async (req, res) => {
         let queryStr = `
             SELECT b.id, b.name, b.address, b.phone, b.subscription_plan, 
                    b.cover_image_url, b.cuisine, b.rating, b.reviews_count, 
-                   b.price_range, b.is_open, b.owner_id, bt.name as type_name, b.dining_offers, b.amenities, b.average_cost
+                   b.price_range, b.is_open, b.owner_id, bt.name as type_name, 
+                   b.dining_offers, b.amenities, b.average_cost,
+                   CASE WHEN active_camp.id IS NOT NULL THEN true ELSE false END as is_promoted
             FROM businesses b 
             LEFT JOIN business_types bt ON b.type_id = bt.id
+            LEFT JOIN (
+                SELECT business_id, MIN(id) as id 
+                FROM business_marketing_campaigns 
+                WHERE status = 'ACTIVE' AND end_date >= CURRENT_DATE
+                GROUP BY business_id
+            ) active_camp ON b.id = active_camp.business_id
+            ORDER BY is_promoted DESC, b.rating DESC NULLS LAST
         `;
         const conditions = [];
         const params = [];
@@ -221,7 +230,7 @@ exports.getAnalytics = async (req, res) => {
     try {
         // Total bookings
         const totalBookings = await pool.query('SELECT COUNT(*) FROM bookings WHERE business_id = $1', [id]);
-        
+
         // Walk-in vs Online
         const sourceStats = await pool.query(`
             SELECT booking_source, COUNT(*) as count 
@@ -238,13 +247,29 @@ exports.getAnalytics = async (req, res) => {
             GROUP BY status
         `, [id]);
 
-        res.json({ 
+        res.json({
             data: {
                 total_bookings: parseInt(totalBookings.rows[0].count),
                 sources: sourceStats.rows,
                 statuses: statusStats.rows
             }
         });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+exports.getCampaigns = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(`
+            SELECT c.*, p.name as plan_name, p.duration_days, p.price 
+            FROM business_marketing_campaigns c
+            JOIN marketing_plans p ON c.plan_id = p.id
+            WHERE c.business_id = $1
+            ORDER BY c.end_date DESC
+        `, [id]);
+        res.json({ data: result.rows });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

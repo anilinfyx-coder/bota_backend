@@ -9,6 +9,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const path = require('path');
+const ensureDatabase = require('./ensureDatabase');
 const runAllMigrations = require('./migrations');
 
 const app = express();
@@ -42,9 +43,15 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
-// Run migrations before starting the server
-runAllMigrations(pool).then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+// Ensure database exists, then run migrations before starting the server
+ensureDatabase()
+  .then(() => runAllMigrations(pool))
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
   });
-});

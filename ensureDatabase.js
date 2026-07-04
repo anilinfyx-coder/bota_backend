@@ -2,6 +2,21 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 async function ensureDatabase() {
+  if (process.env.DATABASE_URL) {
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+
+    try {
+      await pool.query('SELECT 1');
+      console.log('Connected to remote database (Neon).');
+    } finally {
+      await pool.end();
+    }
+    return;
+  }
+
   const dbName = process.env.DB_NAME || 'restaurant_booking';
 
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(dbName)) {
